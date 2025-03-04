@@ -135,7 +135,7 @@ This comprehensive guide outlines best practices, conventions, and standards for
     - Implement proper state initialization
 
     Global State
-    - Recommend an aproach to handle global state
+    - Use zustand for global state
 
     Error Handling and Validation
     Form Validation
