@@ -1,7 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { useAdmin } from '@/components/admin/admin-provider';
+import { useState } from 'react';
 import { AdminSidebar } from '@/components/admin/admin-sidebar';
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
@@ -9,43 +8,26 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { JsonEditor } from 'json-edit-react';
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import type { FileDetailsResponse, FileInfo, PaginationParams } from '@/lib/admin-api';
-import { Edit, MoreHorizontal, Plus, Trash2, Eye } from 'lucide-react';
-import { format } from 'date-fns';
-import { useTheme } from 'next-themes';
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
 import { toast } from 'sonner';
+import { useTheme } from 'next-themes';
+import { FileIcon, ClockIcon, HardDriveIcon } from 'lucide-react';
 
 type FileContent = Record<string, unknown>;
+
+type FileInfo = {
+  size_bytes: number;
+  size_kb: number;
+  last_modified: string;
+  age_days: number;
+  path: string;
+};
 
 const defaultJson: FileContent = {
   name: 'Example Company',
@@ -58,170 +40,160 @@ const defaultJson: FileContent = {
 };
 
 export default function FilesPage() {
-  const { api, isLoading } = useAdmin();
-  const [files, setFiles] = useState<FileInfo[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [pagination, setPagination] = useState({
-    skip: 0,
-    limit: 10,
-    total: 0,
-  });
-  const [sortBy, setSortBy] = useState<PaginationParams['sort_by']>('last_modified');
-  const [order, setOrder] = useState<PaginationParams['order']>('desc');
-  const [selectedFile, setSelectedFile] = useState<string | null>(null);
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
-  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
-  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-  const [fileDetails, setFileDetails] = useState<FileDetailsResponse | null>(null);
-  const [newFile, setNewFile] = useState<{ cvrNumber: string; content: FileContent }>({
-    cvrNumber: '',
-    content: defaultJson,
-  });
-  const [editingFile, setEditingFile] = useState<{ cvrNumber: string; content: FileContent }>({
-    cvrNumber: '',
-    content: defaultJson,
-  });
-  const [creating, setCreating] = useState(false);
-  const [editing, setEditing] = useState(false);
+  const [cvrNumber, setCvrNumber] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
   const { theme } = useTheme();
+  const [editingFile, setEditingFile] = useState<{
+    cvrNumber: string;
+    content: FileContent;
+    info?: FileInfo;
+  }>({
+    cvrNumber: '',
+    content: defaultJson,
+  });
 
-  useEffect(() => {
-    if (api && !isLoading) {
-      fetchFiles();
+  const handleFetch = async () => {
+    if (!cvrNumber.trim()) {
+      toast.error('Please enter a CVR number');
+      return;
     }
-  }, [api, isLoading]);
 
-  const fetchFiles = async () => {
     setLoading(true);
     try {
-      const response = await api?.listFiles({
-        skip: pagination.skip,
-        limit: pagination.limit,
-        sort_by: sortBy,
-        order: order,
-      });
-
-      if (response) {
-        setFiles(response.files);
-        setPagination({
-          skip: response.pagination.skip,
-          limit: response.pagination.limit,
-          total: response.pagination.total,
-        });
+      const response = await fetch(`/api/admin/files/${cvrNumber}`);
+      if (!response.ok) {
+        if (response.status === 404) {
+          setEditingFile({ cvrNumber: '', content: defaultJson });
+          setIsEditing(false);
+          toast.error('File not found');
+        } else {
+          throw new Error('Failed to fetch file');
+        }
+        return;
       }
+      const data = await response.json();
+      setEditingFile({
+        cvrNumber,
+        content: data.content as FileContent,
+        info: data.file_info as FileInfo,
+      });
+      setIsEditing(true);
+      toast.success('File loaded successfully');
     } catch (error) {
-      console.error('Error fetching files:', error);
+      console.error('Error fetching file:', error);
+      toast.error('Failed to fetch file');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleViewFile = async (cvrNumber: string) => {
-    setSelectedFile(cvrNumber);
-    setIsViewDialogOpen(true);
+  const handleCreate = async () => {
+    if (!cvrNumber.trim()) {
+      toast.error('Please enter a CVR number');
+      return;
+    }
 
+    setLoading(true);
     try {
-      const details = await api?.getFileDetails(cvrNumber);
-      if (details) {
-        setFileDetails(details);
+      const response = await fetch(`/api/admin/files/${cvrNumber}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ content: defaultJson }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to create file');
       }
-    } catch (error) {
-      console.error('Error fetching file details:', error);
-    }
-  };
 
-  const handleEditClick = async (cvrNumber: string) => {
-    setSelectedFile(cvrNumber);
-    setIsEditDialogOpen(true);
-
-    try {
-      const details = await api?.getFileDetails(cvrNumber);
-      if (details) {
-        setEditingFile({
-          cvrNumber,
-          content: details.content as FileContent,
-        });
-      }
-    } catch (error) {
-      console.error('Error fetching file details:', error);
-    }
-  };
-
-  const handleDeleteFile = async () => {
-    if (!selectedFile) return;
-
-    try {
-      await api?.deleteFile(selectedFile);
-      setIsDeleteDialogOpen(false);
-      fetchFiles();
-      toast.success('File deleted successfully');
-    } catch (error) {
-      console.error('Error deleting file:', error);
-      toast.error('Failed to delete file');
-    }
-  };
-
-  const handleCreateFile = async () => {
-    if (!newFile.cvrNumber || !newFile.content) return;
-
-    setCreating(true);
-    try {
-      await api?.createFile(newFile.cvrNumber, newFile.content);
-      setIsCreateDialogOpen(false);
-      setNewFile({ cvrNumber: '', content: defaultJson });
-      fetchFiles();
+      const data = await response.json();
+      setEditingFile({
+        cvrNumber,
+        content: defaultJson,
+        info: data.file_info as FileInfo,
+      });
+      setIsEditing(true);
       toast.success('File created successfully');
     } catch (error) {
       console.error('Error creating file:', error);
       toast.error('Failed to create file');
     } finally {
-      setCreating(false);
+      setLoading(false);
     }
   };
 
-  const handleUpdateFile = async () => {
-    if (!editingFile.cvrNumber || !editingFile.content) return;
+  const handleUpdate = async () => {
+    if (!cvrNumber.trim() || !editingFile.content) {
+      toast.error('Missing CVR number or file content');
+      return;
+    }
 
-    setEditing(true);
+    console.log('Updating file with content:', editingFile.content);
+
+    setLoading(true);
     try {
-      await api?.updateFile(editingFile.cvrNumber, editingFile.content);
-      setIsEditDialogOpen(false);
-      setEditingFile({ cvrNumber: '', content: defaultJson });
-      fetchFiles();
+      const response = await fetch(`/api/admin/files/${cvrNumber}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ content: editingFile.content }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update file');
+      }
+
+      const data = await response.json();
+      // Update file info after successful update
+      if (data.file_info) {
+        setEditingFile((prev) => ({ ...prev, info: data.file_info as FileInfo }));
+      }
+      console.log('Update response:', data);
       toast.success('File updated successfully');
     } catch (error) {
       console.error('Error updating file:', error);
       toast.error('Failed to update file');
     } finally {
-      setEditing(false);
+      setLoading(false);
     }
   };
 
-  const handlePageChange = (direction: 'next' | 'prev') => {
-    if (direction === 'next' && pagination.skip + pagination.limit < pagination.total) {
-      setPagination((prev) => ({
-        ...prev,
-        skip: prev.skip + prev.limit,
-      }));
-    } else if (direction === 'prev' && pagination.skip > 0) {
-      setPagination((prev) => ({
-        ...prev,
-        skip: Math.max(0, prev.skip - prev.limit),
-      }));
+  const handleDelete = async () => {
+    if (!cvrNumber.trim()) {
+      toast.error('Please enter a CVR number');
+      return;
+    }
+
+    if (!confirm('Are you sure you want to delete this file?')) {
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const response = await fetch(`/api/admin/files/${cvrNumber}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to delete file');
+      }
+
+      setEditingFile({ cvrNumber: '', content: defaultJson });
+      setIsEditing(false);
+      toast.success('File deleted successfully');
+    } catch (error) {
+      console.error('Error deleting file:', error);
+      toast.error('Failed to delete file');
+    } finally {
+      setLoading(false);
     }
   };
 
   const formatDate = (dateString: string) => {
-    return format(new Date(dateString), 'MMM dd, yyyy HH:mm');
-  };
-
-  const formatFileSize = (sizeInKB: number) => {
-    if (sizeInKB < 1024) {
-      return `${sizeInKB.toFixed(2)} KB`;
-    } else {
-      return `${(sizeInKB / 1024).toFixed(2)} MB`;
-    }
+    return new Date(dateString).toLocaleString();
   };
 
   return (
@@ -231,303 +203,128 @@ export default function FilesPage() {
         <header className="flex h-16 items-center gap-4 border-b bg-background px-6">
           <SidebarTrigger />
           <div>
-            <h1 className="text-lg font-semibold">Files Management</h1>
-            <p className="text-sm text-muted-foreground">View and manage all files in the system</p>
+            <h1 className="text-lg font-semibold">File Management</h1>
+            <p className="text-sm text-muted-foreground">Manage individual CVR files</p>
           </div>
         </header>
-        <main className="flex-1 p-6">
-          <div className="mb-6 flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div>
-                <Label htmlFor="sort-by">Sort By</Label>
-                <Select
-                  value={sortBy}
-                  onValueChange={(value) => setSortBy(value as PaginationParams['sort_by'])}
-                >
-                  <SelectTrigger id="sort-by" className="w-[180px]">
-                    <SelectValue placeholder="Sort by" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="last_modified">Last Modified</SelectItem>
-                    <SelectItem value="cvr_number">CVR Number</SelectItem>
-                    <SelectItem value="size">Size</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label htmlFor="order">Order</Label>
-                <Select
-                  value={order}
-                  onValueChange={(value) => setOrder(value as PaginationParams['order'])}
-                >
-                  <SelectTrigger id="order" className="w-[180px]">
-                    <SelectValue placeholder="Order" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="asc">Ascending</SelectItem>
-                    <SelectItem value="desc">Descending</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <Button onClick={() => setIsCreateDialogOpen(true)}>
-              <Plus className="mr-2 h-4 w-4" /> Add New File
-            </Button>
-          </div>
 
-          <div className="rounded-md border">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>CVR Number</TableHead>
-                  <TableHead>Size</TableHead>
-                  <TableHead>Last Modified</TableHead>
-                  <TableHead>Age (Days)</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {loading ? (
-                  <TableRow>
-                    <TableCell colSpan={5} className="h-24 text-center">
-                      Loading files...
-                    </TableCell>
-                  </TableRow>
-                ) : files.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={5} className="h-24 text-center">
-                      No files found
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  files.map((file) => (
-                    <TableRow key={file.cvr_number}>
-                      <TableCell className="font-medium">{file.cvr_number}</TableCell>
-                      <TableCell>{formatFileSize(file.size_kb)}</TableCell>
-                      <TableCell>{formatDate(file.last_modified)}</TableCell>
-                      <TableCell>{file.age_days}</TableCell>
-                      <TableCell className="text-right">
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" className="h-8 w-8 p-0">
-                              <span className="sr-only">Open menu</span>
-                              <MoreHorizontal className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem onClick={() => handleViewFile(file.cvr_number)}>
-                              <Eye className="mr-2 h-4 w-4" /> View
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleEditClick(file.cvr_number)}>
-                              <Edit className="mr-2 h-4 w-4" /> Edit
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              onClick={() => {
-                                setSelectedFile(file.cvr_number);
-                                setIsDeleteDialogOpen(true);
-                              }}
-                              className="text-destructive"
-                            >
-                              <Trash2 className="mr-2 h-4 w-4" /> Delete
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </div>
+        <main className="flex-1 space-y-4 p-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>CVR File Operations</CardTitle>
+              <CardDescription>
+                Enter a CVR number to create, read, update, or delete its associated file
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex gap-4">
+                <div className="flex-1 space-y-2">
+                  <Label htmlFor="cvr-number">CVR Number</Label>
+                  <Input
+                    id="cvr-number"
+                    value={cvrNumber}
+                    onChange={(e) => setCvrNumber(e.target.value)}
+                    placeholder="Enter CVR number"
+                    disabled={loading}
+                  />
+                </div>
+                <div className="flex items-end gap-2">
+                  <Button onClick={handleFetch} disabled={loading}>
+                    Load
+                  </Button>
+                  <Button onClick={handleCreate} disabled={loading} variant="outline">
+                    Create New
+                  </Button>
+                </div>
+              </div>
 
-          <div className="mt-4 flex items-center justify-between">
-            <div className="text-sm text-muted-foreground">
-              Showing {pagination.skip + 1} to{' '}
-              {Math.min(pagination.skip + pagination.limit, pagination.total)} of {pagination.total}{' '}
-              files
-            </div>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handlePageChange('prev')}
-                disabled={pagination.skip === 0}
-              >
-                Previous
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handlePageChange('next')}
-                disabled={pagination.skip + pagination.limit >= pagination.total}
-              >
-                Next
-              </Button>
-            </div>
-          </div>
+              {isEditing && editingFile.info && (
+                <div className="grid gap-4 rounded-lg border bg-muted/50 p-4 md:grid-cols-3">
+                  <div className="flex items-center gap-2">
+                    <HardDriveIcon className="h-4 w-4 text-muted-foreground" />
+                    <div>
+                      <p className="text-sm font-medium">Size</p>
+                      <p className="text-sm text-muted-foreground">
+                        {editingFile.info.size_kb.toFixed(2)} KB
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <ClockIcon className="h-4 w-4 text-muted-foreground" />
+                    <div>
+                      <p className="text-sm font-medium">Last Modified</p>
+                      <p className="text-sm text-muted-foreground">
+                        {formatDate(editingFile.info.last_modified)}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <FileIcon className="h-4 w-4 text-muted-foreground" />
+                    <div>
+                      <p className="text-sm font-medium">Path</p>
+                      <p className="text-sm text-muted-foreground break-all">
+                        {editingFile.info.path}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {isEditing && (
+                <div className="space-y-2">
+                  <Label>File Content</Label>
+                  <div className="min-h-[400px] max-h-[600px] overflow-auto rounded-md border bg-background ring-offset-background focus-within:outline-none focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2">
+                    <div className="min-w-max">
+                      <JsonEditor
+                        data={editingFile.content}
+                        setData={(data) =>
+                          setEditingFile((prev) => ({ ...prev, content: data as FileContent }))
+                        }
+                        onError={(error) => console.error('JSON Error:', error)}
+                        theme={{
+                          styles: {
+                            container: {
+                              backgroundColor: 'transparent',
+                              color: theme === 'dark' ? '#ffffff' : '#000000',
+                              height: '100%',
+                              overflow: 'auto',
+                              whiteSpace: 'nowrap',
+                              padding: '1rem',
+                            },
+                            string: theme === 'dark' ? '#7ee787' : '#0550ae',
+                            number: theme === 'dark' ? '#79c0ff' : '#0550ae',
+                            boolean: theme === 'dark' ? '#ff7b72' : '#cf222e',
+                            null: theme === 'dark' ? '#ff7b72' : '#cf222e',
+                            property: theme === 'dark' ? '#d2a8ff' : '#953800',
+                            bracket: { color: theme === 'dark' ? '#ffffff' : '#000000' },
+                            iconCollection: theme === 'dark' ? '#ffffff' : '#000000',
+                            itemCount: { color: theme === 'dark' ? '#ffffff80' : '#00000080' },
+                            input: {
+                              backgroundColor: theme === 'dark' ? '#ffffff10' : '#00000010',
+                              color: theme === 'dark' ? '#ffffff' : '#000000',
+                            },
+                            error: { color: theme === 'dark' ? '#ff7b72' : '#cf222e' },
+                          },
+                        }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+            {isEditing && (
+              <CardFooter className="flex justify-end gap-2">
+                <Button onClick={handleDelete} variant="destructive" disabled={loading}>
+                  Delete
+                </Button>
+                <Button onClick={handleUpdate} disabled={loading}>
+                  Save Changes
+                </Button>
+              </CardFooter>
+            )}
+          </Card>
         </main>
       </SidebarInset>
-
-      {/* Create File Dialog */}
-      <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-        <DialogContent className="sm:max-w-[800px]">
-          <DialogHeader>
-            <DialogTitle>Create New File</DialogTitle>
-            <DialogDescription>
-              Enter the CVR number and content for the new file. The content must be valid JSON.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid gap-2">
-              <Label htmlFor="cvr-number">CVR Number</Label>
-              <Input
-                id="cvr-number"
-                value={newFile.cvrNumber}
-                onChange={(e) => setNewFile((prev) => ({ ...prev, cvrNumber: e.target.value }))}
-                placeholder="Enter CVR number"
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="content">Content (JSON)</Label>
-              <div className="min-h-[400px] max-h-[600px] overflow-hidden rounded-md border bg-background ring-offset-background focus-within:outline-none focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2">
-                <JsonEditor
-                  data={newFile.content as Record<string, unknown>}
-                  setData={(data) =>
-                    setNewFile((prev) => ({ ...prev, content: data as FileContent }))
-                  }
-                  onError={(error) => console.error('JSON Error:', error)}
-                  theme={{
-                    styles: {
-                      container: {
-                        backgroundColor: 'transparent',
-                        color: theme === 'dark' ? '#ffffff' : '#000000',
-                      },
-                      string: theme === 'dark' ? '#7ee787' : '#0550ae',
-                      number: theme === 'dark' ? '#79c0ff' : '#0550ae',
-                      boolean: theme === 'dark' ? '#ff7b72' : '#cf222e',
-                      null: theme === 'dark' ? '#ff7b72' : '#cf222e',
-                      property: theme === 'dark' ? '#d2a8ff' : '#953800',
-                      bracket: { color: theme === 'dark' ? '#ffffff' : '#000000' },
-                      iconCollection: theme === 'dark' ? '#ffffff' : '#000000',
-                      itemCount: { color: theme === 'dark' ? '#ffffff80' : '#00000080' },
-                      input: { backgroundColor: theme === 'dark' ? '#ffffff10' : '#00000010' },
-                      error: { color: theme === 'dark' ? '#ff7b72' : '#cf222e' },
-                    },
-                  }}
-                />
-              </div>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleCreateFile} disabled={creating}>
-              {creating ? 'Creating...' : 'Create'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Edit File Dialog */}
-      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="sm:max-w-[800px]">
-          <DialogHeader>
-            <DialogTitle>Edit File</DialogTitle>
-            <DialogDescription>
-              Edit the content of file {selectedFile}. The content must be valid JSON.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="min-h-[400px] max-h-[600px] overflow-hidden rounded-md border bg-background ring-offset-background focus-within:outline-none focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2">
-              <JsonEditor
-                data={editingFile.content as Record<string, unknown>}
-                setData={(data) =>
-                  setEditingFile((prev) => ({ ...prev, content: data as FileContent }))
-                }
-                onError={(error) => console.error('JSON Error:', error)}
-                theme={{
-                  styles: {
-                    container: {
-                      backgroundColor: 'transparent',
-                      color: theme === 'dark' ? '#ffffff' : '#000000',
-                    },
-                    string: theme === 'dark' ? '#7ee787' : '#0550ae',
-                    number: theme === 'dark' ? '#79c0ff' : '#0550ae',
-                    boolean: theme === 'dark' ? '#ff7b72' : '#cf222e',
-                    null: theme === 'dark' ? '#ff7b72' : '#cf222e',
-                    property: theme === 'dark' ? '#d2a8ff' : '#953800',
-                    bracket: { color: theme === 'dark' ? '#ffffff' : '#000000' },
-                    iconCollection: theme === 'dark' ? '#ffffff' : '#000000',
-                    itemCount: { color: theme === 'dark' ? '#ffffff80' : '#00000080' },
-                    input: { backgroundColor: theme === 'dark' ? '#ffffff10' : '#00000010' },
-                    error: { color: theme === 'dark' ? '#ff7b72' : '#cf222e' },
-                  },
-                }}
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleUpdateFile} disabled={editing}>
-              {editing ? 'Saving...' : 'Save Changes'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* View File Dialog */}
-      <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
-        <DialogContent className="sm:max-w-[800px]">
-          <DialogHeader>
-            <DialogTitle>File Details</DialogTitle>
-            <DialogDescription>Viewing details for file {selectedFile}</DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-4 py-4">
-            {fileDetails ? (
-              <div className="min-h-[400px] max-h-[600px] overflow-auto rounded-md border bg-background">
-                <pre className="p-4 text-sm font-mono whitespace-pre-wrap break-all">
-                  <code className="text-foreground">
-                    {JSON.stringify(fileDetails.content, null, 2)}
-                  </code>
-                </pre>
-              </div>
-            ) : (
-              <p>Loading file details...</p>
-            )}
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsViewDialogOpen(false)}>
-              Close
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Delete Confirmation Dialog */}
-      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Delete File</DialogTitle>
-            <DialogDescription>
-              Are you sure you want to delete the file with CVR number {selectedFile}? This action
-              cannot be undone.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button variant="destructive" onClick={handleDeleteFile}>
-              Delete
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </SidebarProvider>
   );
 }

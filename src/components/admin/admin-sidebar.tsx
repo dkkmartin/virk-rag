@@ -1,8 +1,8 @@
-"use client"
+'use client';
 
-import { usePathname } from "next/navigation"
-import Link from "next/link"
-import { BarChart3, FileText, HardDrive, Home, Settings, LogOut } from "lucide-react"
+import { usePathname } from 'next/navigation';
+import Link from 'next/link';
+import { BarChart3, HardDrive, Home, Settings, LogOut, Activity, FileText } from 'lucide-react';
 
 import {
   Sidebar,
@@ -12,23 +12,23 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-} from "@/components/ui/sidebar"
-import { logout } from "@/app/admin/actions"
-import { useRouter } from "next/navigation"
+} from '@/components/ui/sidebar';
+import { logout } from '@/app/admin/actions';
+import { useRouter } from 'next/navigation';
 
 export function AdminSidebar() {
-  const pathname = usePathname()
-  const router = useRouter()
+  const pathname = usePathname();
+  const router = useRouter();
 
   const handleLogout = async () => {
-    await logout()
-    router.push("/admin/login")
-    router.refresh()
-  }
+    await logout();
+    router.push('/admin/login');
+    router.refresh();
+  };
 
   const isActive = (path: string) => {
-    return pathname === path
-  }
+    return pathname === path;
+  };
 
   return (
     <Sidebar>
@@ -52,7 +52,7 @@ export function AdminSidebar() {
       <SidebarContent>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton asChild isActive={isActive("/admin")}>
+            <SidebarMenuButton asChild isActive={isActive('/admin')}>
               <Link href="/admin">
                 <Home className="size-4" />
                 <span>Dashboard</span>
@@ -60,7 +60,7 @@ export function AdminSidebar() {
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>
-            <SidebarMenuButton asChild isActive={isActive("/admin/files")}>
+            <SidebarMenuButton asChild isActive={isActive('/admin/files')}>
               <Link href="/admin/files">
                 <FileText className="size-4" />
                 <span>Files</span>
@@ -68,7 +68,15 @@ export function AdminSidebar() {
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>
-            <SidebarMenuButton asChild isActive={isActive("/admin/statistics")}>
+            <SidebarMenuButton asChild isActive={isActive('/admin/requests')}>
+              <Link href="/admin/requests">
+                <Activity className="size-4" />
+                <span>Requests</span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem>
+            <SidebarMenuButton asChild isActive={isActive('/admin/statistics')}>
               <Link href="/admin/statistics">
                 <BarChart3 className="size-4" />
                 <span>Statistics</span>
@@ -76,7 +84,7 @@ export function AdminSidebar() {
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>
-            <SidebarMenuButton asChild isActive={isActive("/admin/settings")}>
+            <SidebarMenuButton asChild isActive={isActive('/admin/settings')}>
               <Link href="/admin/settings">
                 <Settings className="size-4" />
                 <span>Settings</span>
@@ -96,6 +104,5 @@ export function AdminSidebar() {
         </SidebarMenu>
       </SidebarFooter>
     </Sidebar>
-  )
+  );
 }
-
