@@ -1,9 +1,12 @@
-import { Search } from 'lucide-react';
+import { Search, AlertCircle } from 'lucide-react';
 import { Label } from '@/components/ui/label';
 import { SidebarGroup, SidebarGroupContent, SidebarInput } from '@/components/ui/sidebar';
 import { useForm, SubmitHandler } from 'react-hook-form';
 import { useCVRStore } from '@/lib/store';
 import { Root } from '@/types/virk-response';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { searchSchema } from '@/lib/schemas';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 type Input = {
   search: string;
@@ -14,7 +17,7 @@ export function SearchForm({ ...props }: React.ComponentProps<'form'>) {
     register,
     handleSubmit,
     formState: { errors },
-  } = useForm<Input>();
+  } = useForm<Input>({ resolver: zodResolver(searchSchema) });
 
   const responses = useCVRStore((state) => state.responses);
   const addResponse = useCVRStore((state) => state.addResponse);
@@ -52,16 +55,19 @@ export function SearchForm({ ...props }: React.ComponentProps<'form'>) {
           <Label htmlFor="search" className="sr-only">
             Search
           </Label>
-          <SidebarInput
-            id="search"
-            placeholder="CVR..."
-            className="pl-8"
-            {...register('search', { required: 'Please enter a CVR number' })}
-          />
+          <SidebarInput id="search" placeholder="CVR..." className="pl-8" {...register('search')} />
           <Search className="pointer-events-none absolute left-2 top-1/2 size-4 -translate-y-1/2 select-none opacity-50" />
         </SidebarGroupContent>
+        {errors.search && (
+          <Alert className="mt-2">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Heads up!</AlertTitle>
+            <AlertDescription>
+              {errors.search && <p className="">{errors.search.message}</p>}
+            </AlertDescription>
+          </Alert>
+        )}
       </SidebarGroup>
-      {errors.search && <p className="text-red-500">{errors.search.message}</p>}
     </form>
   );
 }
