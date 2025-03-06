@@ -1,47 +1,60 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useAdmin } from '@/components/admin/admin-provider';
+
 import { AdminSidebar } from '@/components/admin/admin-sidebar';
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import type { Statistics } from '@/lib/admin-api';
-import { RefreshCw } from 'lucide-react';
+import type { Statistics } from '@/types/api';
+import { Calendar, FileText, HardDrive, RefreshCw } from 'lucide-react';
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, XAxis, YAxis } from 'recharts';
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
+import { formatDate } from '@/lib/utils';
 
 export default function StatisticsPage() {
-  const { api, isLoading } = useAdmin();
   const [statistics, setStatistics] = useState<Statistics | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  useEffect(() => {
-    if (api && !isLoading) {
-      fetchStatistics();
-    }
-  }, [api, isLoading]);
-
-  const fetchStatistics = async (forceRefresh = false) => {
-    if (forceRefresh) {
+  function fetchStatistics() {
+    const fetchData = async () => {
       setRefreshing(true);
-    } else {
-      setLoading(true);
-    }
-
-    try {
-      const stats = await api?.getStatistics(forceRefresh);
-      if (stats) {
-        setStatistics(stats);
+      try {
+        const response = await fetch('/api/admin/statistics?force_refresh=true');
+        if (!response.ok) {
+          throw new Error('Failed to fetch statistics');
+        }
+        const data = await response.json();
+        setStatistics(data);
+      } catch (error) {
+        console.error('Error fetching data:', error);
+      } finally {
+        setRefreshing(false);
       }
-    } catch (error) {
-      console.error('Error fetching statistics:', error);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  };
+    };
+
+    fetchData();
+  }
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const response = await fetch('/api/admin/statistics');
+        if (!response.ok) {
+          throw new Error('Failed to fetch statistics');
+        }
+        const data = await response.json();
+        setStatistics(data);
+      } catch (error) {
+        console.error('Error fetching data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, []);
 
   // Prepare data for age distribution chart
   const ageDistributionData = [
@@ -58,11 +71,6 @@ export default function StatisticsPage() {
     { name: '50-100KB', value: statistics?.size_distribution['50-100KB'] || 0 },
     { name: '100KB+', value: statistics?.size_distribution['100KB+'] || 0 },
   ];
-
-  const formatDate = (dateString: string | undefined) => {
-    if (!dateString) return 'N/A';
-    return new Date(dateString).toLocaleString();
-  };
 
   const formatYAxis = (value: string | number): string => {
     const numValue = Number(value);
@@ -87,12 +95,10 @@ export default function StatisticsPage() {
           <SidebarTrigger />
           <div className="flex-1">
             <h1 className="text-lg font-semibold">Statistics</h1>
-            <p className="text-sm text-muted-foreground">
-              Detailed statistics about the file system
-            </p>
+            <p className="text-sm text-muted-foreground">Detailed statistics about the files</p>
           </div>
           <Button
-            onClick={() => fetchStatistics(true)}
+            onClick={() => fetchStatistics()}
             disabled={refreshing}
             variant="outline"
             size="sm"
@@ -108,45 +114,36 @@ export default function StatisticsPage() {
             </div>
           ) : (
             <>
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                 <Card>
-                  <CardHeader className="pb-2">
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                     <CardTitle className="text-sm font-medium">Total Files</CardTitle>
+                    <FileText size={20} />
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold">
+                    <p className="text-2xl font-bold">
                       {statistics?.total_files.toLocaleString() || 0}
-                    </div>
+                    </p>
                   </CardContent>
                 </Card>
                 <Card>
-                  <CardHeader className="pb-2">
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                     <CardTitle className="text-sm font-medium">Total Size</CardTitle>
+                    <HardDrive size={20} />
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold">
+                    <p className="text-2xl font-bold">
                       {statistics?.total_size.megabytes.toFixed(2) || 0} MB
-                    </div>
+                    </p>
                   </CardContent>
                 </Card>
                 <Card>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-medium">Disk Usage</CardTitle>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Last Calculated</CardTitle>
+                    <Calendar size={20} />
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold">
-                      {statistics?.system_info.disk_usage_percent.toFixed(1) || 0}%
-                    </div>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-medium">Memory Usage</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold">
-                      {statistics?.system_info.memory_usage_percent.toFixed(1) || 0}%
-                    </div>
+                    <p className="text-2xl font-bold">{formatDate(statistics?.last_calculated)}</p>
                   </CardContent>
                 </Card>
               </div>
@@ -244,26 +241,6 @@ export default function StatisticsPage() {
                       </BarChart>
                     </ResponsiveContainer>
                   </ChartContainer>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle>Additional Information</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <h3 className="text-sm font-medium">Storage Path</h3>
-                        <p className="mt-1 text-sm">{statistics?.storage_path || 'N/A'}</p>
-                      </div>
-                      <div>
-                        <h3 className="text-sm font-medium">Last Calculated</h3>
-                        <p className="mt-1 text-sm">{formatDate(statistics?.last_calculated)}</p>
-                      </div>
-                    </div>
-                  </div>
                 </CardContent>
               </Card>
             </>

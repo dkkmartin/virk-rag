@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useAdmin } from '@/components/admin/admin-provider';
 import { AdminSidebar } from '@/components/admin/admin-sidebar';
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
 import {
@@ -26,7 +25,6 @@ interface RequestStats {
 }
 
 export default function RequestsPage() {
-  const { isLoading } = useAdmin();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [stats, setStats] = useState<RequestStats | null>(null);
@@ -54,10 +52,23 @@ export default function RequestsPage() {
   };
 
   useEffect(() => {
-    if (!isLoading) {
-      fetchStats();
-    }
-  }, [isLoading]);
+    const fetchData = async () => {
+      try {
+        const response = await fetch('/api/admin/requests');
+        if (!response.ok) {
+          throw new Error('Failed to fetch statistics');
+        }
+        const data = await response.json();
+        setStats(data);
+      } catch (error) {
+        console.error('Error fetching data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, []);
 
   return (
     <SidebarProvider>

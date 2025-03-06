@@ -54,6 +54,10 @@ export async function POST(request: NextRequest, context: { params: { cvrNumber:
       body: JSON.stringify(data),
     });
 
+    if (response.status === 409) {
+      return Response.json({ error: 'File already exists' }, { status: 409 });
+    }
+
     if (!response.ok) {
       const error = await response.json();
       return Response.json(error, { status: response.status });

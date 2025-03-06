@@ -104,6 +104,11 @@ export default function FilesPage() {
         body: JSON.stringify({ content: defaultJson }),
       });
 
+      if (response.status === 409) {
+        toast.error('File already exists');
+        return;
+      }
+
       if (!response.ok) {
         throw new Error('Failed to create file');
       }
