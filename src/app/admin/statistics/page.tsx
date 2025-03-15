@@ -56,7 +56,6 @@ export default function StatisticsPage() {
     fetchData();
   }, []);
 
-  // Prepare data for age distribution chart
   const ageDistributionData = [
     { name: 'Last Day', value: statistics?.age_distribution.last_day || 0 },
     { name: 'Last Week', value: statistics?.age_distribution.last_week || 0 },
@@ -64,7 +63,6 @@ export default function StatisticsPage() {
     { name: 'Older', value: statistics?.age_distribution.older || 0 },
   ];
 
-  // Prepare data for size distribution chart
   const sizeDistributionData = [
     { name: '0-10KB', value: statistics?.size_distribution['0-10KB'] || 0 },
     { name: '10-50KB', value: statistics?.size_distribution['10-50KB'] || 0 },
